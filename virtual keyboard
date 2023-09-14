@@ -1,28 +1,23 @@
 import cv2
 import mediapipe as mp  # 손 추적을 위한 라이브러리
 from pynput.keyboard import Controller  # 키보드제어 pynput
-from cvzone.HandTrackingModule import HandDetector
 from time import sleep
 import math
 import numpy as np
 import time
-import tkinter as tk  # tkinter 라이브러리 추가
+import tkinter as tk  # tkinter 라이브러리 추가 # 메시지박스를 위한 tkinter 생성
 from tkinter import messagebox
 
-
-camIndex = 0
 cap = cv2.VideoCapture(cv2.CAP_DSHOW + 0)
 cap.set(cv2.CAP_PROP_FPS, 30)  # 30fps로 설정 예시
+# 화면크기설정
 cap.set(3, 1280)
 cap.set(4, 600)
 
-# Mediapipe Hands 개체 및 pynput키보드 컨트롤러 정의
+# Mediapipe Hands 개체
 mpHands = mp.solutions.hands  # mediapipe.solutions.hands모듈이 손동작인식을 위한 모듈
 Hands = mpHands.Hands(min_detection_confidence=0.1, min_tracking_confidence=0.5)
 mpDraw = mp.solutions.drawing_utils
-
-
-detector = HandDetector(detectionCon=0.8)
 
 
 # 사용할 키보드 자판
@@ -32,8 +27,7 @@ keys = [
     ["Z", "X", "C", "V", "B", "N", "M", ",", ".", "/"],
 ]
 
-
-finalText = ""
+finalText = ""  # 텍스트 박스 초기화
 
 keyboard = Controller()  # 키 누름을 시뮬레이션하기 위한 Pynput 키보드 컨트롤러
 
@@ -46,11 +40,11 @@ class Store:  # 키보드 자판- 위치,사이즈,텍스트
         self.text = text
 
 
+# 키보드 자판 값- Store클래스를 통해 위치,크기,텍스트 지정
 StoredVar = []
 for i in range(len(keys)):
-    for j, key in enumerate(keys[i]):
+    for j, key in enumerate(keys[i]):  # enumerate 리스트 열거
         StoredVar.append(Store([100 * j + 50, 100 * i + 50], [70, 70], key))
-
 StoredVar.append(Store([350, 350], [370, 100], "SPACE"))
 StoredVar.append(Store([1040, 150], [170, 170], "ENTER"))
 StoredVar.append(Store([1040, 50], [170, 70], "BSPC"))  # 위치, 크기, 텍스트
@@ -70,7 +64,7 @@ def draw(img, StoredVar):
             cv2.FILLED,
         )
         cv2.putText(
-            img,
+            imgNew,
             button.text,
             (x + 25, y + 45),
             cv2.FONT_HERSHEY_PLAIN,
@@ -79,12 +73,15 @@ def draw(img, StoredVar):
             3,
         )
     out = img.copy()
-    alpha = 0.5
     mask = imgNew.astype(bool)
-    # print(mask.shape)
-    out[mask] = cv2.addWeighted(img, alpha, imgNew, 1 - alpha, 0)[mask]
+    out[mask] = cv2.addWeighted(img, 0.5, imgNew, 0.5, 0)[mask]
     return out
 
+
+# 클릭 디바운스를 사용하여 클릭 후 일정 시간 동안 다시 클릭을 무시하도록 합니다.
+# 클릭 디바운스 시간은 debounce_time 변수를 통해 조절할 수 있으며, 현재 클릭 상태는 clicked 변수로 관리됨.
+# 이를 통해 클릭을 더 안정적으로 감지하고, 중복 클릭을 방지할 수 있습니다.
+# 디바운스는 두 번 이상 클릭 또는 액션을 방지하고 일정 시간 동안 중복 입력을 무시하는 기술입니다
 
 # 클릭 감지 상태 변수
 clicked = False
@@ -142,11 +139,10 @@ while True:
                 ## when clicked
                 if l < 50 and not clicked:
                     clicked = True
-                    if button.text == "SPACE":
+                    if button.text == "SPACE":  # 스페이스 버튼 추가
                         keyboard.press(" ")
                         finalText += " "
                     elif button.text == "BSPC":  # 백스페이스 버튼 추가
-                        # 현재 커서 위치에서 한 글자 삭제
                         finalText = (
                             finalText[: cursor_position - 1]
                             + finalText[cursor_position:]
@@ -186,17 +182,11 @@ while True:
 
     cv2.rectangle(img, (50, 550), (1230, 750), (255, 255, 255), cv2.FILLED)
     cv2.putText(img, finalText, (80, 610), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 3)
-
     cv2.imshow("Hand Tracking", img)
-    if cv2.waitKey(1) == "q":  # Q=113
+    
+    
+    if cv2.waitKey(1) == ord("q"):
         break
-
+    
 cap.release()
 cv2.destroyAllWindows()
-
-# 이 코드는 클릭 디바운스를 사용하여 클릭 후 일정 시간 동안 다시 클릭을 무시하도록 합니다.
-# 클릭 디바운스 시간은 debounce_time 변수를 통해 조절할 수 있으며, 현재 클릭 상태는 clicked 변수로 관리됩니다.
-# 이를 통해 클릭을 더 안정적으로 감지하고, 중복 클릭을 방지할 수 있습니다.
-# 클릭을 한 번 감지한 후 일정 시간 동안 다시 클릭을 감지하지 않도록 하는 방법은 사용자 경험을 향상시키는 데 도움이 될 수 있습니다.
-# 이를 위해 "디바운스" 라고 하는 메커니즘을 사용할 수 있습니다.
-# 디바운스는 두 번 이상 클릭 또는 액션을 방지하고 일정 시간 동안 중복 입력을 무시하는 기술입니다
