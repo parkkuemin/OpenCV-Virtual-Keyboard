@@ -1,6 +1,6 @@
 import cv2
 import mediapipe as mp  # 손 추적을 위한 라이브러리
-from pynput.keyboard import Controller  # 키보드제어 pynput
+from pynput.keyboard import Controller, Key  # 키보드제어 pynput
 from time import sleep
 import math
 import numpy as np
@@ -52,7 +52,7 @@ StoredVar.append(Store([1040, 50], [170, 70], "BSPC"))  # 위치, 크기, 텍스
 
 # 가상 키보드를 그리는 함수 정의
 def draw(img, StoredVar):
-    imgNew = np.zeros_like(img, np.uint8)
+    imgNew = np.zeros_like(img, np.uint8)  # 0으로 가득찬 배열 생성
     for button in StoredVar:
         x, y = button.pos
         w, h = button.size
@@ -79,8 +79,8 @@ def draw(img, StoredVar):
 
 
 # 클릭 디바운스를 사용하여 클릭 후 일정 시간 동안 다시 클릭을 무시
-# 클릭 디바운스 시간은 debounce_time 변수를 통해 조절할 수 있으며, 현재 클릭 상태는 clicked 변수로 관리됨.
-# 이를 통해 클릭을 더 안정적으로 감지하고, 중복 클릭을 방지할 수 있음.
+# 클릭 디바운스 시간은 debounce_time 변수를 통해 조절할 수 있으며, 현재 클릭 상태는 clicked 변수로 관리됨
+# 이를 통해 클릭을 더 안정적으로 감지하고, 중복 클릭을 방지할 수 있음
 # 디바운스는 두 번 이상 클릭 또는 액션을 방지하고 일정 시간 동안 중복 입력을 무시하는 기술
 
 # 클릭 감지 상태 변수
@@ -140,16 +140,22 @@ while True:
                 if l < 50 and not clicked:
                     clicked = True
                     if button.text == "SPACE":  # 스페이스 버튼 추가
-                        keyboard.press(" ")
-                        finalText += " "
+                        keyboard.press(Key.space)
+                        finalText = (
+                            finalText[:cursor_position]
+                            + " "
+                            + finalText[cursor_position:]
+                        )
+                        cursor_position += 1
                     elif button.text == "BSPC":  # 백스페이스 버튼 추가
+                        keyboard.press(Key.backspace)
                         finalText = (
                             finalText[: cursor_position - 1]
                             + finalText[cursor_position:]
                         )
                         cursor_position -= 1
                     elif button.text == "ENTER":  # 엔터 키 동작 추가
-                        messagebox.showinfo("메시지", finalText)
+                        keyboard.press(Key.enter)
                     else:
                         keyboard.press(button.text)
                         finalText = (
@@ -183,10 +189,9 @@ while True:
     cv2.rectangle(img, (50, 550), (1230, 750), (255, 255, 255), cv2.FILLED)
     cv2.putText(img, finalText, (80, 610), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 3)
     cv2.imshow("Hand Tracking", img)
-    
-    
+
     if cv2.waitKey(1) == ord("q"):
         break
-    
+
 cap.release()
 cv2.destroyAllWindows()
