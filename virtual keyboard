@@ -1,0 +1,182 @@
+import cv2
+import mediapipe as mp  # 손 추적을 위한 라이브러리
+from pynput.keyboard import Controller  # 키보드제어 pynput
+from cvzone.HandTrackingModule import HandDetector
+from time import sleep
+import math
+import numpy as np
+import time
+
+camIndex = 0
+cap = cv2.VideoCapture(cv2.CAP_DSHOW + 0)
+cap.set(cv2.CAP_PROP_FPS, 30)  # 30fps로 설정 예시
+cap.set(3, 1280)
+cap.set(4, 600)
+
+# Mediapipe Hands 개체 및 pynput키보드 컨트롤러 정의
+mpHands = mp.solutions.hands  # mediapipe.solutions.hands모듈이 손동작인식을 위한 모듈
+Hands = mpHands.Hands(min_detection_confidence=0.1, min_tracking_confidence=0.5)
+mpDraw = mp.solutions.drawing_utils
+
+
+detector = HandDetector(detectionCon=0.8)
+
+
+# 사용할 키보드 자판
+keys = [
+    ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+    ["A", "S", "D", "F", "G", "H", "J", "K", "L", ";"],
+    ["Z", "X", "C", "V", "B", "N", "M", ",", ".", "/"],
+]
+
+
+finalText = ""
+
+keyboard = Controller()  # 키 누름을 시뮬레이션하기 위한 Pynput 키보드 컨트롤러
+
+
+# 가상 키보드를 그리는 함수 정의
+def draw(img, StoredVar):
+    imgNew = np.zeros_like(img, np.uint8)
+    for button in StoredVar:
+        x, y = button.pos
+        w, h = button.size
+        cv2.rectangle(
+            imgNew,
+            button.pos,
+            (x + w, y + h),
+            (153, 255, 153),
+            cv2.FILLED,
+        )
+        cv2.putText(
+            img,
+            button.text,
+            (x + 40, y + 60),
+            cv2.FONT_HERSHEY_PLAIN,
+            2,
+            (0, 0, 0),
+            3,
+        )
+    out = img.copy()
+    alpha = 0.5
+    mask = imgNew.astype(bool)
+    # print(mask.shape)
+    out[mask] = cv2.addWeighted(img, alpha, imgNew, 1 - alpha, 0)[mask]
+    return out
+
+
+# 키정보를 저장하기 위한 클래스 정의
+class Store:  # 키보드 자판- 위치,사이즈,텍스트
+    def __init__(self, pos, size, text):
+        self.pos = pos
+        self.size = size
+        self.text = text
+
+
+StoredVar = []
+for i in range(len(keys)):
+    for j, key in enumerate(keys[i]):
+        StoredVar.append(Store([100 * j + 50, 100 * i + 50], [70, 70], key))
+
+StoredVar.append(Store([350, 350], [370, 100], "SPACE"))
+StoredVar.append(Store([1040, 50], [170, 70], "BSPC"))  # 위치, 크기, 텍스트
+
+
+# 클릭 감지 상태 변수
+clicked = False
+# 클릭 디바운스 시간 (초)
+debounce_time = 1
+# 클릭 디바운스 시작 시간
+start_time = time.time()
+
+while True:
+    success_, img = cap.read()
+    img = cv2.flip(img, 1)
+    cvtImg = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    results = Hands.process(cvtImg)
+    lmList = []
+    img = draw(img, StoredVar)
+
+    if results.multi_hand_landmarks:
+        hand_landmarks = results.multi_hand_landmarks[0]
+        mpDraw.draw_landmarks(img, hand_landmarks, mpHands.HAND_CONNECTIONS)
+        lmList = [
+            (int(lm.x * img.shape[1]), int(lm.y * img.shape[0]))
+            for lm in hand_landmarks.landmark
+        ]
+
+    if lmList:
+        for button in StoredVar:
+            x, y = button.pos
+            w, h = button.size
+
+            if x < lmList[8][0] < x + w and y < lmList[8][1] < y + h:
+                cv2.rectangle(
+                    img, button.pos, (x + w, y + h), (175, 0, 175), cv2.FILLED
+                )
+                cv2.putText(
+                    img,
+                    button.text,
+                    (x + 20, y + 65),
+                    cv2.FONT_HERSHEY_PLAIN,
+                    4,
+                    (255, 255, 255),
+                    4,
+                )
+                x1, y1 = lmList[8][0], lmList[8][1]
+                x2, y2 = lmList[12][0], lmList[12][1]
+                l = math.hypot(x2 - x1 - 30, y2 - y1 - 30)
+                print(l)
+
+                # l값에 따라 값이 입력됨.
+
+                ## when clicked
+                if l < 50 and not clicked:
+                    clicked = True
+                    if button.text == "SPACE":
+                        keyboard.press(" ")
+                        finalText += " "
+                    else:
+                        keyboard.press(button.text)
+                        finalText += button.text
+                    cv2.rectangle(
+                        img,
+                        button.pos,
+                        (x + w, y + h),
+                        (0, 255, 0),
+                        cv2.FILLED,
+                    )
+                    cv2.putText(
+                        img,
+                        button.text,
+                        (x + 20, y + 65),
+                        cv2.FONT_HERSHEY_PLAIN,
+                        4,
+                        (255, 255, 255),
+                        4,
+                    )
+                    sleep(0.15)
+                    # 클릭 후 디바운스 시간 설정
+                    start_time = time.time()
+
+                # 디바운스 시간 동안 클릭 무시
+                if clicked and time.time() - start_time >= debounce_time:
+                    clicked = False
+
+    cv2.rectangle(img, (50, 550), (1230, 750), (255, 255, 255), cv2.FILLED)
+    cv2.putText(img, finalText, (80, 610), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 3)
+
+    cv2.imshow("Hand Tracking", img)
+    if cv2.waitKey(1) == "q":  # Q=113
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+
+
+# 이 코드는 클릭 디바운스를 사용하여 클릭 후 일정 시간 동안 다시 클릭을 무시하도록 합니다.
+# 클릭 디바운스 시간은 debounce_time 변수를 통해 조절할 수 있으며, 현재 클릭 상태는 clicked 변수로 관리됩니다.
+# 이를 통해 클릭을 더 안정적으로 감지하고, 중복 클릭을 방지할 수 있습니다.
+# 클릭을 한 번 감지한 후 일정 시간 동안 다시 클릭을 감지하지 않도록 하는 방법은 사용자 경험을 향상시키는 데 도움이 될 수 있습니다.
+# 이를 위해 "디바운스" 라고 하는 메커니즘을 사용할 수 있습니다.
+# 디바운스는 두 번 이상 클릭 또는 액션을 방지하고 일정 시간 동안 중복 입력을 무시하는 기술입니다
